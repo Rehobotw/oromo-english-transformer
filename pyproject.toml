@@ -1,0 +1,41 @@
+[project]
+name = "translator"
+version = "0.1.0"
+description = "Afaan Oromo <-> English Transformer NMT built from scratch in PyTorch"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.5.0",
+    "sentencepiece>=0.2.0",
+    "datasets>=3.0.0",
+    "sacrebleu>=2.4.0",
+    "gradio>=5.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/translator"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+# Tell uv to fetch torch strictly from the PyTorch CPU-only repository
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
