@@ -2,7 +2,7 @@ from torch import masked
 import torch.nn as nn
 import torch
 import math
-from config import TransformerConfig.dropout_rate
+from config import dropout_rate
 
 class InputEmbedding(nn.Module):
     def __init__(self,d_model:int,vocab_size:int):

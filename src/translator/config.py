@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 import numpy as np
 import random
 import torch 
@@ -13,10 +14,20 @@ class TransfomerConfig:
     dropout_rate:float=0.2
     
     # training hyperparameters
-    learning_rate:float=3e-4
-    batch_size:int=128
-    num_epochs:int=10
+    lr:float=3e-4 # learning rate
+    batch_size:int=8
+    num_epochs:int=20
     weight_decay:float=1e-4
+
+    seq_len=350
+    d_model=512
+    lang_src='en',
+    lang_tgt='orm',
+    model_folder='weights',
+    model_filename='tmodel_',
+    preload=None,
+    tokenizer_file='tokeinizer_{0}.json',
+    experiment_name='runs/tmodel'
  
     def __post_init__(self) -> None:
         #Validate fields and compute derived values.
@@ -32,3 +43,26 @@ def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
+
+
+def get_config():
+    return{
+        #'batch_size':8,
+        #'num_epochs':20,
+        #'lr':10**-4,
+        'seq_len':350,
+        'd_model':512,
+        'lang_src':'en',
+        'lang_tgt':'it',
+        'model_folder':'weights',
+        'model_filename':'tmodel_',
+        'preload':None,
+        'tokenizer_file':'tokeinizer_{0}.json',
+        'experiment_name':'runs/tmodel'
+    }
+
+def get_weight_file_pathJ(config,epoch:str):
+    model_folder=config['model_folder']
+    model_basename=config['model_basename']
+    model_filename=f"{model_basename}{epoch}.pt"
+    return str(Path('.'/model_folder/model_filename))
