@@ -5,11 +5,15 @@ description = "Afaan Oromo <-> English Transformer NMT built from scratch in PyT
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=1.26.0",
     "torch>=2.5.0",
     "sentencepiece>=0.2.0",
     "datasets>=3.0.0",
     "sacrebleu>=2.4.0",
     "gradio>=5.0.0",
+    "tqdm>=4.66.0",
+    "tensorboard>=2.5.0",
+    "tokenizers>=0.20.0",
 ]
 
 [dependency-groups]
