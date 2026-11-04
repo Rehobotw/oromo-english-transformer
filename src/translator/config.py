@@ -26,11 +26,14 @@ class TransformerConfig:
     lang_src: str = 'en'        # source language: English
     lang_tgt: str = 'orm'       # target language: Afaan Oromo
 
+    # Tokenizer — SentencePiece BPE vocabulary size (shared by both languages)
+    vocab_size: int = 8000
+
     # File paths
     model_folder: str = 'checkpoints'
     model_basename: str = 'tmodel_'
     preload: str = None         # set to an epoch string like '05' to resume training
-    tokenizer_file: str = 'tokenizer_{0}.json'
+    tokenizer_file: str = 'tokenizer_{0}.model'   # .model = SentencePiece binary format
     experiment_name: str = 'runs/tmodel'
 
     def __post_init__(self):

@@ -2,10 +2,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 from pathlib import Path
 from datasets import load_dataset
-from tokenizers import Tokenizer
-from tokenizers.models import WordLevel
-from tokenizers.trainers import WordLevelTrainer
-from tokenizers.pre_tokenizers import Whitespace
+import sentencepiece as spm
 from typing import Any
 
 
@@ -20,28 +17,104 @@ def get_all_sentences(dataset, language):
 
 
 # ---------------------------------------------------------------------------
+# SentencePiece wrapper
+# ---------------------------------------------------------------------------
+class SPMEncoding:
+    """Lightweight return value for SPMTokenizer.encode(), matching the
+    .ids attribute of HuggingFace Encoding objects so the rest of the
+    codebase can keep writing tokenizer.encode(text).ids unchanged."""
+
+    __slots__ = ('ids',)
+
+    def __init__(self, ids: list):
+        self.ids = ids
+
+
+class SPMTokenizer:
+    """Thin wrapper around SentencePieceProcessor that exposes the same API
+    the rest of the codebase expects:
+
+        tokenizer.encode(text).ids          -> list[int]
+        tokenizer.decode(ids)               -> str   (ids may be a numpy array)
+        tokenizer.token_to_id('[PAD]')      -> int
+        tokenizer.get_vocab_size()          -> int
+
+    This keeps BilingualDataset, inference.py, and train.py completely
+    unchanged — only the tokenizer builder below changes.
+    """
+
+    def __init__(self, model_file: str):
+        self.sp = spm.SentencePieceProcessor(model_file=str(model_file))
+
+    # --- encoding -----------------------------------------------------------
+
+    def encode(self, text: str) -> SPMEncoding:
+        """Encode text into sub-word ids (BPE).  Returns an SPMEncoding
+        with an .ids attribute identical to the HuggingFace Encoding API."""
+        return SPMEncoding(self.sp.encode(text, out_type=int))
+
+    # --- decoding -----------------------------------------------------------
+
+    def decode(self, ids) -> str:
+        """Decode token ids back to text.
+        Accepts Python lists, PyTorch tensors, or NumPy arrays."""
+        if hasattr(ids, 'tolist'):
+            ids = ids.tolist()
+        return self.sp.decode(ids)
+
+    # --- vocabulary helpers -------------------------------------------------
+
+    def token_to_id(self, piece: str) -> int:
+        """Return the integer id for a piece / special token string."""
+        return self.sp.piece_to_id(piece)
+
+    def id_to_token(self, id_: int) -> str:
+        """Return the piece string for a given integer id."""
+        return self.sp.id_to_piece(id_)
+
+    def get_vocab_size(self) -> int:
+        """Return the total vocabulary size (including special tokens)."""
+        return self.sp.get_piece_size()
+
+    def __len__(self) -> int:
+        return self.sp.get_piece_size()
+
+
+# ---------------------------------------------------------------------------
 # Tokenizer builder
 # ---------------------------------------------------------------------------
-def get_or_build_tokenizer(config, dataset, language):
-    """Load a saved tokenizer from disk, or train a new one and save it.
+def get_or_build_tokenizer(config, dataset, language) -> SPMTokenizer:
+    """Load a saved SentencePiece BPE model, or train a new one and save it.
 
-    Tokenizer files are named like:  tokenizer_en.json / tokenizer_orm.json
+    Model files are named like:  tokenizer_en.model / tokenizer_orm.model
+
+    Special token layout (fixed ids so the model and vocabulary always agree):
+        0 → [UNK]   1 → [PAD]   2 → [SOS]   3 → [EOS]
     """
     tokenizer_path = Path(config.tokenizer_file.format(language))
+    # SentencePieceTrainer writes <prefix>.model and <prefix>.vocab
+    model_prefix   = str(tokenizer_path.with_suffix(''))
 
     if not tokenizer_path.exists():
-        tokenizer = Tokenizer(WordLevel(unk_token='[UNK]'))
-        tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(
-            special_tokens=['[UNK]', '[PAD]', '[SOS]', '[EOS]'],
-            min_frequency=2
+        tokenizer_path.parent.mkdir(parents=True, exist_ok=True)
+        spm.SentencePieceTrainer.train(
+            sentence_iterator = get_all_sentences(dataset, language),
+            model_prefix      = model_prefix,
+            model_type        = 'bpe',           # Byte-Pair Encoding
+            vocab_size        = config.vocab_size,
+            # If the corpus is too small to fill vocab_size, use however many
+            # sub-words are available instead of raising an error.
+            hard_vocab_limit  = False,
+            # Pin special tokens to fixed ids (0-3) so every checkpoint is
+            # consistent, regardless of corpus size or language.
+            unk_id=0,  pad_id=1,  bos_id=2,  eos_id=3,
+            unk_piece='[UNK]',
+            pad_piece='[PAD]',
+            bos_piece='[SOS]',
+            eos_piece='[EOS]',
         )
-        tokenizer.train_from_iterator(get_all_sentences(dataset, language), trainer=trainer)
-        tokenizer.save(str(tokenizer_path))
-    else:
-        tokenizer = Tokenizer.from_file(str(tokenizer_path))
 
-    return tokenizer
+    return SPMTokenizer(str(tokenizer_path))
 
 
 # ---------------------------------------------------------------------------
