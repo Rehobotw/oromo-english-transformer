@@ -35,5 +35,13 @@ runs/
 .DS_Store
 Thumbs.db
 
+# Gradio
+gradio_cached_examples/
+flagged/
+
+# Tokenizer model files (built at runtime from the dataset)
+tokenizer_*.model
+tokenizer_*.vocab
+
 # ChangeLogs
 changes.md

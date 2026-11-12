@@ -91,6 +91,7 @@ class FeedForwardBlock(nn.Module):
 # Multi-Head Attention
 # ---------------------------------------------------------------------------
 class MultiHeadAttention(nn.Module):
+    #(model_dim, num_heads, dropout_rate)
     def __init__(self, model_dim: int, num_heads: int, dropout_rate: float):
         super().__init__()
         assert model_dim % num_heads == 0, 'model_dim must be divisible by num_heads'
@@ -106,7 +107,7 @@ class MultiHeadAttention(nn.Module):
 
     @staticmethod
     def scaled_dot_product_attention(query, key, value, mask, dropout):
-        head_dim = query.shape[-1]
+        head_dim = query.shape[-1]   #head_dim=64
         # (batch, heads, seq_len, seq_len)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(head_dim)
 
@@ -260,6 +261,7 @@ class Transformer(nn.Module):
 # ---------------------------------------------------------------------------
 # Builder function
 # ---------------------------------------------------------------------------
+#(source_vocab_size target_vocab_size, source_seq_len, target_seq_len, model_dim, num_layers, num_heads, dropout_rate, ff_dim )
 def build_transformer(source_vocab_size: int, target_vocab_size: int,
                       source_seq_len: int, target_seq_len: int,
                       model_dim: int = 512, num_layers: int = 6,

@@ -23,7 +23,7 @@ class TransformerConfig:
 
     # Sequence and language settings
     seq_len: int = 350
-    lang_src: str = 'en'        # source language: English
+    lang_src: str = 'eng'        # source language: English
     lang_tgt: str = 'orm'       # target language: Afaan Oromo
 
     # Tokenizer — SentencePiece BPE vocabulary size (shared by both languages)

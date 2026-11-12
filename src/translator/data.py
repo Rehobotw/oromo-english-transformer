@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 from pathlib import Path
-from datasets import load_dataset
+from datasets import load_dataset # HuggingFace library
 import sentencepiece as spm
 from typing import Any
 
@@ -17,14 +17,15 @@ def get_all_sentences(dataset, language):
 
 
 # ---------------------------------------------------------------------------
-# SentencePiece wrapper
+# SentencePiece wrapper             
 # ---------------------------------------------------------------------------
+#Adapter: It is written so that the rest of the code functions normally without any modification.
 class SPMEncoding:
     """Lightweight return value for SPMTokenizer.encode(), matching the
     .ids attribute of HuggingFace Encoding objects so the rest of the
     codebase can keep writing tokenizer.encode(text).ids unchanged."""
 
-    __slots__ = ('ids',)
+    __slots__ = ('ids',) # restricts the object to exactly the listed attributes
 
     def __init__(self, ids: list):
         self.ids = ids
@@ -73,7 +74,7 @@ class SPMTokenizer:
         return self.sp.id_to_piece(id_)
 
     def get_vocab_size(self) -> int:
-        """Return the total vocabulary size (including special tokens)."""
+        """Return the total vocabusource_tokenizerlary size (including special tokens)."""
         return self.sp.get_piece_size()
 
     def __len__(self) -> int:
@@ -83,7 +84,7 @@ class SPMTokenizer:
 # ---------------------------------------------------------------------------
 # Tokenizer builder
 # ---------------------------------------------------------------------------
-def get_or_build_tokenizer(config, dataset, language) -> SPMTokenizer:
+def get_or_build_tokenizer(config, dataset, language) -> SPMTokenizer: #config, raw_dataset, config.lang_src
     """Load a saved SentencePiece BPE model, or train a new one and save it.
 
     Model files are named like:  tokenizer_en.model / tokenizer_orm.model
@@ -120,7 +121,7 @@ def get_or_build_tokenizer(config, dataset, language) -> SPMTokenizer:
 # ---------------------------------------------------------------------------
 # Dataset class
 # ---------------------------------------------------------------------------
-class BilingualDataset(Dataset):
+class BilingualDataset(Dataset):  #train_raw, source_tokenizer, target_tokenizer,config.lang_src, config.lang_tgt, config.seq_len
     """Wraps a HuggingFace dataset split and converts sentence pairs into
     the tensors the Transformer needs: token ids, masks, and labels."""
 
@@ -211,8 +212,7 @@ def get_dataset(config):
     The dataset is bidirectional: config.lang_src and config.lang_tgt control
     the direction.  Swap them to translate Oromo -> English instead.
     """
-
-    raw_dataset = load_dataset('allenai/wmt22_african', 'eng-orm', split='train')
+    raw_dataset = load_dataset('allenai/wmt22_african',data_dir='eng-orm',split='train',revision='refs/convert/parquet')
 
     source_tokenizer = get_or_build_tokenizer(config, raw_dataset, config.lang_src)
     target_tokenizer = get_or_build_tokenizer(config, raw_dataset, config.lang_tgt)
