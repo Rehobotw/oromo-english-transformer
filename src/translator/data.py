@@ -212,7 +212,7 @@ def get_dataset(config):
     The dataset is bidirectional: config.lang_src and config.lang_tgt control
     the direction.  Swap them to translate Oromo -> English instead.
     """
-    raw_dataset = load_dataset('allenai/wmt22_african',data_dir='eng-orm',split='train',revision='refs/convert/parquet')
+    raw_dataset = load_dataset('allenai/wmt22_african',data_dir='eng-orm',split='train[:200000]',revision='refs/convert/parquet')
 
     source_tokenizer = get_or_build_tokenizer(config, raw_dataset, config.lang_src)
     target_tokenizer = get_or_build_tokenizer(config, raw_dataset, config.lang_tgt)

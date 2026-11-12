@@ -33,7 +33,7 @@ class TransformerConfig:
     model_folder: str = 'checkpoints'
     model_basename: str = 'tmodel_'
     preload: str = None         # set to an epoch string like '05' to resume training
-    tokenizer_file: str = 'tokenizer_{0}.model'   # .model = SentencePiece binary format
+    tokenizer_file: str = 'data/tokenizer_{0}.model'   # .model = SentencePiece binary format
     experiment_name: str = 'runs/tmodel'
 
     def __post_init__(self):
