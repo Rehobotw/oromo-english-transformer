@@ -40,7 +40,7 @@ def run_validation(model, val_dataloader, source_tokenizer, target_tokenizer,
 
             source_text    = batch['source_text'][0]
             expected_text  = batch['target_text'][0]
-            predicted_text = target_tokenizer.decode(predicted_ids.detach().cpu().numpy())
+            predicted_text = target_tokenizer.decode(predicted_ids.detach().cpu().numpy().tolist())
 
             print_fn('-' * console_width)
             print_fn(f'SOURCE:    {source_text}')
@@ -94,21 +94,31 @@ def train_model(config: TransformerConfig):
     start_epoch = 0
     global_step = 0
 
-    # Resume from a checkpoint if one is specified
+    # 1. UPDATED: Resume from a checkpoint ONLY if the file actually exists
     if config.preload:
         checkpoint_path = get_weight_file_path(config, config.preload)
-        print(f'Loading checkpoint: {checkpoint_path}')
-        state = torch.load(checkpoint_path, weights_only=True)
-        model.load_state_dict(state['model_state_dict'])
-        start_epoch = state['epoch'] + 1
-        optimizer.load_state_dict(state['optimizer_state_dict'])
-        global_step = state['global_step']
+        if Path(checkpoint_path).exists():
+            print(f'Loading checkpoint: {checkpoint_path}')
+            state = torch.load(checkpoint_path, weights_only=True)
+            model.load_state_dict(state['model_state_dict'])
+            optimizer.load_state_dict(state['optimizer_state_dict'])
+            global_step = state['global_step']
+            # If the checkpoint was saved at the end of an epoch, start at the next epoch;
+            # if it was saved mid-epoch, stay on the current epoch.
+            if state.get('end_of_epoch', True):
+                start_epoch = state['epoch'] + 1
+            else:
+                start_epoch = state['epoch']
+        else:
+            print(f'No checkpoint found at {checkpoint_path}, starting training from scratch.')
 
     # Ignore padding tokens in the loss so they don't skew gradients
     loss_fn = nn.CrossEntropyLoss(
         ignore_index   = source_tokenizer.token_to_id('[PAD]'),
         label_smoothing= 0.1
     ).to(device)
+
+    save_every_n_steps = 500  # Adjust to 500 or 1000 as needed
 
     for epoch in range(start_epoch, config.num_epochs):
         model.train()
@@ -121,9 +131,9 @@ def train_model(config: TransformerConfig):
             decoder_mask  = batch['decoder_mask'].to(device)    # (batch, 1, seq_len, seq_len)
             label         = batch['label'].to(device)           # (batch, seq_len)
 
-            encoder_output  = model.encode(encoder_input, encoder_mask)           # (batch, seq_len, model_dim)
-            decoder_output  = model.decode(encoder_output, encoder_mask,
-                                           decoder_input, decoder_mask)           # (batch, seq_len, model_dim)
+            encoder_output   = model.encode(encoder_input, encoder_mask)          # (batch, seq_len, model_dim)
+            decoder_output   = model.decode(encoder_output, encoder_mask,
+                                            decoder_input, decoder_mask)          # (batch, seq_len, model_dim)
             projected_output = model.project(decoder_output)                      # (batch, seq_len, vocab_size)
 
             # Flatten batch and seq_len into one dimension for the loss function
@@ -134,12 +144,25 @@ def train_model(config: TransformerConfig):
             batch_iterator.set_postfix({'loss': f'{loss.item():.3f}'})
 
             writer.add_scalar('train/loss', loss.item(), global_step)
-            writer.flush()
 
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
+
+            # 2. ADDED: Save a rolling 'latest' checkpoint every N steps inside the batch loop
+            if global_step % save_every_n_steps == 0:
+                latest_path = get_weight_file_path(config, 'latest')
+                torch.save({
+                    'epoch':                epoch,
+                    'end_of_epoch':         False,
+                    'model_state_dict':     model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'global_step':          global_step,
+                }, latest_path)
+                batch_iterator.write(f'Step {global_step}: Rolling checkpoint saved to {latest_path}')
+
+        writer.flush()
 
         # Validate at the end of every epoch
         run_validation(
@@ -150,15 +173,20 @@ def train_model(config: TransformerConfig):
             writer      = writer,
         )
 
-        # Save a checkpoint after every epoch
-        checkpoint_path = get_weight_file_path(config, f'{epoch:02d}')
-        torch.save({
+        # 3. UPDATED: Save both the numbered epoch checkpoint AND update 'latest'
+        checkpoint_data = {
             'epoch':                epoch,
+            'end_of_epoch':         True,
             'model_state_dict':     model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),   # was optimizer.state_dic() — typo fixed
+            'optimizer_state_dict': optimizer.state_dict(),
             'global_step':          global_step,
-        }, checkpoint_path)
-        print(f'Checkpoint saved: {checkpoint_path}')
+        }
+        checkpoint_path = get_weight_file_path(config, f'{epoch:02d}')
+        latest_path     = get_weight_file_path(config, 'latest')
+
+        torch.save(checkpoint_data, checkpoint_path)
+        torch.save(checkpoint_data, latest_path)
+        print(f'Epoch checkpoint saved: {checkpoint_path} (and updated {latest_path})')
 
 
 # ---------------------------------------------------------------------------
